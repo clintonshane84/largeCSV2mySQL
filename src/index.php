@@ -1,7 +1,14 @@
+<?php
+// setup the PHP environment
+require dirname(dirname(__FILE__)) . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'env.php';
 
+// composer - autoload
+require dirname(dirname(__FILE__)) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+
+?>
 <html>
 <head>
-<title> csv2 sql</title>
+<title>PHP - CSV 2 SQL</title>
 <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
 </head>
 <body>
@@ -26,7 +33,7 @@
 	<div class="form-group">
         <label for="password" class="control-label col-xs-2">Password</label>
 		<div class="col-xs-3">
-        <input type="text" class="form-control" name="password" id="password" placeholder="">
+        <input type="password" class="form-control" name="password" id="password" placeholder="">
 		</div>
     </div>
 	<div class="form-group">
@@ -39,13 +46,20 @@
 	<div class="form-group">
         <label for="table" class="control-label col-xs-2">table name</label>
 		<div class="col-xs-3">
-        <input type="name" class="form-control" name="table" id="table">
+        <input type="text" class="form-control" name="table" id="table">
 		</div>
     </div>
 	<div class="form-group">
         <label for="csvfile" class="control-label col-xs-2">Name of the file</label>
 		<div class="col-xs-3">
-        <input type="name" class="form-control" name="csv" id="csv">
+        <input type="text" class="form-control" name="csv" id="csv">
+		</div>
+		eg. MYDATA.csv
+    </div>
+	<div class="form-group">
+        <label for="offset" class="control-label col-xs-2">Row Start Offset</label>
+		<div class="col-xs-3">
+        <input type="number" class="form-control" name="offset" id="offset">
 		</div>
 		eg. MYDATA.csv
     </div>
@@ -62,49 +76,52 @@
 
 <?php 
 
-if(isset($_POST['username'])&&isset($_POST['mysql'])&&isset($_POST['db'])&&isset($_POST['username']))
-{
-$sqlname=$_POST['mysql'];
-$username=$_POST['username'];
-$table=$_POST['table'];
-if(isset($_POST['password']))
-{
-$password=$_POST['password'];
-}
-else
-{
-$password= '';
-}
-$db=$_POST['db'];
-$file=$_POST['csv'];
-$cons= mysqli_connect("$sqlname", "$username","$password","$db") or die(mysql_error());
+if(isset($_POST['username']) === true && isset($_POST['mysql']) === true && isset($_POST['db']) === true && isset($_POST['username']) === true) {
 
-$result1=mysqli_query($cons,"select count(*) count from $table");
-$r1=mysqli_fetch_array($result1);
-$count1=(int)$r1['count'];
-//If the fields in CSV are not seperated by comma(,)  replace comma(,) in the below query with that  delimiting character 
-//If each tuple in CSV are not seperated by new line.  replace \n in the below query  the delimiting character which seperates two tuples in csv
-// for more information about the query http://dev.mysql.com/doc/refman/5.1/en/load-data.html
-mysqli_query($cons, '
-    LOAD DATA LOCAL INFILE "'.$file.'"
-        INTO TABLE '.$table.'
-        FIELDS TERMINATED by \',\'
-        LINES TERMINATED BY \'\n\'
-')or die(mysql_error());
+    $sqlname=$_POST['mysql'];
+    $username=$_POST['username'];
+    $table=$_POST['table'];
+    $offset = filter_input(INPUT_POST, "offset", FILTER_VALIDATE_INT);
+    $offset = (int) ($offset !== null && $offset !== false) ? $offset : 0;
 
-$result2=mysqli_query($cons,"select count(*) count from $table");
-$r2=mysqli_fetch_array($result2);
-$count2=(int)$r2['count'];
+    if(isset($_POST['password']) === true) {
+        $password=$_POST['password'];
+    } else {
+        $password= '';
+    }
 
-$count=$count2-$count1;
-if($count>0)
-echo "Success";
-echo "<b> total $count records have been added to the table $table </b> ";
+    $db = $_POST['db'];
+    $file = $_POST['csv'];
 
+    $pdo = dbconnect($mysql, $db, $user, $password);
 
-}
-else{
-echo "Mysql Server address/Host name ,Username , Database name ,Table name , File name are the Mandatory Fields";
+    $stmt = $pdo->query("select count(*) count from $table");
+    $r1 = $stmt->fetch();
+    $count1 = (int) $r1['count'];
+
+    //If the fields in CSV are not seperated by comma(,)  replace comma(,) in the below query with that  delimiting character 
+    //If each tuple in CSV are not seperated by new line.  replace \n in the below query  the delimiting character which seperates two tuples in csv
+    // for more information about the query http://dev.mysql.com/doc/refman/5.1/en/load-data.html
+    $pdo->query("LOAD DATA LOCAL INFILE \"$file\"
+    INTO TABLE $table
+    FIELDS TERMINATED by ','
+    LINES TERMINATED BY '\\n'
+    IGNORE $offset LINES");
+
+    $stmt = $pdo->query("select count(*) count from $table");
+    $r2 = $stmt->fetch();
+    $count2 = (int)$r2['count'];
+
+    $count = $count2 - $count1;
+
+    if ($count > 0) {
+        echo "Success";
+    }
+
+    echo "<b> total $count records have been added to the table $table </b> ";
+
+} else {
+    echo "Mysql Server address/Host name ,Username , Database name ,Table name , File name are the Mandatory Fields";
 }
 
 ?>
